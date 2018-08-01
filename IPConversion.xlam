@@ -1,0 +1,194 @@
+'''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''
+'IPConversion.xlam written by Stuart Weenig (http://stuart.weenig.com) with contributions from others
+'Copyright 2011-2015
+'May be used/distributed freely as long as these comments are included.
+'This content has not necessarily been checked, tested, or approved by anyone.
+'Stuart Weenig and any other author(s) (implied or explicit) SHALL NOT BE LIABLE TO ANY READER OF THIS BLOG OR
+'THIRD PARTY FOR DIRECT, CONSEQUENTIAL, INCIDENTAL, INDIRECT AND/OR SPECIAL DAMAGES FOR ANY CLAIMS ARISING FROM
+'OR IN ANY WAY CONNECTED WITH YOUR DECISION TO ACCESS OR USE ANY SUCH FILES, EVEN IF THE POSSIBILITY OF SUCH
+'DAMAGES IS, OR SHOULD HAVE BEEN, KNOWN. THESE FILES ARE PROVIDED AS IS WITHOUT ANY warranty or representation
+'of any kind express or implied including without limitation any implied warranty of merchantability/satisfactory
+'quality, fitness for a particular purpose or non-infringment. Your usage of any such Files is at your own risk.
+'The user is solely responsible for testing such Files prior to implementing them in either a test or production
+'environment. We encourage you to check for any documentation (if provided) by looking in the blog posts or
+'comments for additional information (if available). It is recommended to deploy/implement in a test or QA
+'environment before implementing in a production environment. Such Files are not covered by Stuart Weenig's
+'Support Policy and Terms. Stuart Weenig will not under any circumstances support them.
+'''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''
+
+Public Function IP2DEC(ipaddress As String)
+ If IPIsValidIP(ipaddress) = True Then
+     Dim slash As Integer
+     slash = InStr(ipaddress, "/")
+     If slash > 0 Then ipaddress = Left(ipaddress, slash - 1)
+     Dim dfirstoct, dsecondoct, dthirdoct, dfourthoct As Integer
+     dfirstoct = Val(IPGetOctet(ipaddress, 1))
+     dsecondoct = Val(IPGetOctet(ipaddress, 2))
+     dthirdoct = Val(IPGetOctet(ipaddress, 3))
+     dfourthoct = Val(IPGetOctet(ipaddress, 4))
+     IP2DEC = (dfirstoct * 2 ^ 24) + (dsecondoct * 2 ^ 16) + (dthirdoct * 2 ^ 8) + dfourthoct
+ Else
+     IP2DEC = "Invalid IP Address"
+ End If
+End Function
+Public Function IPFROMDEC(ipaddress) As String
+If ipaddress + 1 - 1 <= 4294967295# Then
+    Dim firstoctet As String, secondoctet As String, thirdoctet As String, fourthoctet As String, tempip As String
+    firstoctet = Int(ipaddress / (2 ^ 24))
+    secondoctet = ipaddress - (firstoctet * 2 ^ 24)
+    secondoctet = Int(secondoctet / (2 ^ 16))
+    thirdoctet = ipaddress - (firstoctet * 2 ^ 24) - (secondoctet * 2 ^ 16)
+    thirdoctet = Int(thirdoctet / (2 ^ 8))
+    fourthoctet = ipaddress - (firstoctet * 2 ^ 24) - (secondoctet * 2 ^ 16) - (thirdoctet * 2 ^ 8)
+    fourthoctet = Int(fourthoctet)
+    tempip = firstoctet & "." & secondoctet & "." & thirdoctet & "." & fourthoctet
+    If IPIsValidIP(tempip) Then
+        IPFROMDEC = tempip
+    Else
+        IPFROMDEC = "Invalid IP Address"
+    End If
+Else
+    IPFROMDEC = "Invalid IP Address"
+End If
+End Function
+Public Function IPNetwork(ipaddress As String, mask As Integer) As String
+'finds the network number of a given IP address and mask
+If IPIsValidIP(ipaddress) Then
+     Dim dfirstoct, dsecondoct, dthirdoct, dfourthoct As Integer
+     dfirstoct = Val(IPGetOctet(ipaddress, 1))
+     dsecondoct = Val(IPGetOctet(ipaddress, 2))
+     dthirdoct = Val(IPGetOctet(ipaddress, 3))
+     dfourthoct = Val(IPGetOctet(ipaddress, 4))
+    Select Case mask
+        Case 0 To 7
+            IPNetwork = Application.WorksheetFunction.Bin2Dec(Left(Application.WorksheetFunction.Dec2Bin(dfirstoct, 8), mask) & String(8 - mask, "0")) & ".0.0.0"
+        Case 8 To 15
+            IPNetwork = dfirstoct & "." & Application.WorksheetFunction.Bin2Dec(Left(Application.WorksheetFunction.Dec2Bin(dsecondoct, 8), mask - 8) & String(16 - mask, "0")) & ".0.0"
+        Case 16 To 23
+            IPNetwork = dfirstoct & "." & dsecondoct & "." & Application.WorksheetFunction.Bin2Dec(Left(Application.WorksheetFunction.Dec2Bin(dthirdoct, 8), mask - 16) & String(24 - mask, "0")) & ".0"
+        Case 24 To 31
+            IPNetwork = dfirstoct & "." & dsecondoct & "." & dthirdoct & "." & Application.WorksheetFunction.Bin2Dec(Left(Application.WorksheetFunction.Dec2Bin(dfourthoct, 8), mask - 24) & String(32 - mask, "0"))
+        Case Is = 32
+            IPNetwork = dfirstoct & "." & dsecondoct & "." & dthirdoct & "." & dfourthoct
+    End Select
+Else
+    IPNetwork = "Invalid IP Address"
+End If
+End Function
+Public Function IPIsInSubnet(ipaddress As String, subnet As String, mask As Integer) As Boolean
+'returns true of the given ip address lies within the given subnet and mask
+Dim networknumber As String, networkbroadcast As String
+networknumber = IPNetwork(subnet, mask)
+networkbroadcast = IPFROMDEC(IP2DEC(IPNetwork(subnet, mask)) + 2 ^ (32 - mask) - 1)
+
+If IP2DEC(ipaddress) >= IP2DEC(IPNetwork(subnet, mask)) And IP2DEC(ipaddress) <= IP2DEC(IPNetwork(subnet, mask)) + 2 ^ (32 - mask) - 1 Then
+    IPIsInSubnet = True
+Else
+    IPIsInSubnet = False
+End If
+End Function
+Public Function IPGetOctet(ipaddress As String, octet As Integer) As String
+If IPIsValidIP(ipaddress) And octet > 0 And octet <= 4 Then
+    Dim firstdot As Integer, seconddot As Integer, thirddot As Integer
+     firstdot = InStr(ipaddress, ".")
+     seconddot = InStr(firstdot + 1, ipaddress, ".")
+     thirddot = InStr(seconddot + 1, ipaddress, ".")
+     Dim firstoct, secondoct, thirdoct, fourthoct As String
+     firstoct = Left(ipaddress, firstdot - 1)
+     secondoct = Mid(ipaddress, firstdot + 1, seconddot - firstdot - 1)
+     thirdoct = Mid(ipaddress, seconddot + 1, thirddot - seconddot - 1)
+     fourthoct = Right(ipaddress, Len(ipaddress) - thirddot)
+     Dim dfirstoct, dsecondoct, dthirdoct, dfourthoct As Integer
+     dfirstoct = Val(firstoct)
+     dsecondoct = Val(secondoct)
+     dthirdoct = Val(thirdoct)
+     dfourthoct = Val(fourthoct)
+     Select Case octet
+        Case 1
+            IPGetOctet = dfirstoct
+        Case 2
+            IPGetOctet = dsecondoct
+        Case 3
+            IPGetOctet = dthirdoct
+        Case 4
+            IPGetOctet = dfourthoct
+        Case Else
+            IPGetOctet = "Invalid octet designation (choose 1-4)"
+    End Select
+Else
+    IPGetOctet = "Invalid IP Address"
+End If
+End Function
+Public Function IPGetCIDRList(startip As String, endip As String) As String
+'provides a comma separated list of CIDR blocks between startip and endip, inclusive
+If IPIsValidIP(startip) And IPIsValidIP(endip) Then
+    
+     Dim mask As Integer, startipd As Double, endipd As Double, blocksize As Double, blockstart As String, blockstartd As Double, result As String
+     endipd = IP2DEC(endip) 'convert to decimal
+     blockstart = startip
+findblock:
+     mask = 0
+     blockstartd = IP2DEC(blockstart) 'convert to decimal
+     Do
+      blocksize = 2 ^ (32 - mask) 'get the block size given the current mask
+      If blockstart = endip Then
+       result = result & endip & "/32"
+       blockstart = IPFROMDEC(IP2DEC(blockstart) + blocksize) 'set blockstart to the next ip not already included in the block
+       Exit Do
+      End If
+      If IPNetwork(blockstart, mask) = blockstart And blockstartd + blocksize - 1 <= endipd Then 'if blockstart is at the left boundary and if end of block is before the endip
+       result = result & blockstart & "/" & mask & ", " 'output this block
+       blockstart = IPFROMDEC(IP2DEC(blockstart) + blocksize) 'set blockstart to the next ip not already included in the block
+       Exit Do
+      End If
+      mask = mask + 1
+     Loop Until mask > 32
+     If IP2DEC(blockstart) <= endipd Then GoTo findblock
+     If Right(result, 2) = ", " Then result = Left(result, Len(result) - 2)
+     'MsgBox result
+     IPGetCIDRList = result
+End If
+End Function
+Public Function IPIsValidIP(ipaddress As String) As Boolean
+If Len(ipaddress) = 0 Then
+    IPIsValidIP = False
+    Exit Function
+End If
+Dim slash As Integer
+slash = InStr(ipaddress, "/")
+Dim firstdot As Integer, seconddot As Integer, thirddot As Integer
+firstdot = InStr(ipaddress, ".")
+If firstdot = 0 Then
+    IPIsValidIP = False
+    Exit Function
+End If
+seconddot = InStr(firstdot + 1, ipaddress, ".")
+thirddot = InStr(seconddot + 1, ipaddress, ".")
+'get the strings of each octet
+Dim firstoct, secondoct, thirdoct, fourthoct As String
+firstoct = Left(ipaddress, firstdot - 1)
+secondoct = Mid(ipaddress, firstdot + 1, seconddot - firstdot - 1)
+thirdoct = Mid(ipaddress, seconddot + 1, thirddot - seconddot - 1)
+fourthoct = Right(ipaddress, Len(ipaddress) - thirddot)
+'convert the strings to numbers
+Dim dfirstoct, dsecondoct, dthirdoct, dfourthoct As Integer
+dfirstoct = Val(firstoct)
+dsecondoct = Val(secondoct)
+dthirdoct = Val(thirdoct)
+dfourthoct = Val(fourthoct)
+Select Case 255
+    Case Is < dfirstoct
+        IPIsValidIP = False
+        Exit Function
+    Case Is < dsecondoct
+        IPIsValidIP = False
+        Exit Function
+    Case Is < dthirdoct
+        IPIsValidIP = False
+        Exit Function
+    Case Is < dfourthoct
+        IPIsValidIP = False
+        Exit Function
+End Select
+IPIsValidIP = True
+End Function
